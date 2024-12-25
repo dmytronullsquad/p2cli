@@ -163,6 +163,35 @@ type LaunchArgs struct {
 	Args   []string
 }
 
+// multiLevelEnvProcessor Function to process a key like "lvl1__lvl2__lvl3" into a map
+func multiLevelEnvProcessor(target map[string]interface{}, key string, value string) {
+	// Split the key into parts (hierarchical levels)
+	parts := strings.Split(key, "__")
+
+	// Iterate through the parts to build the nested structure
+	currentMap := target
+	for i, part := range parts {
+		// If we are at the last part, set the value
+		if i == len(parts)-1 {
+			if strings.Contains(value, ",") {
+				currentMap[part] = strings.Split(value, ",")
+			} else {
+				currentMap[part] = value
+			}
+
+			return
+		}
+
+		// If the part does not exist, create a new nested map
+		if _, exists := currentMap[part]; !exists {
+			currentMap[part] = map[string]interface{}{}
+		}
+
+		// Move deeper into the nested map
+		currentMap = currentMap[part].(map[string]interface{})
+	}
+}
+
 // Entrypoint implements the actual functionality of the program so it can be called inline from testing.
 // env is normally passed the environment variable array.
 //
@@ -361,8 +390,18 @@ func Entrypoint(args LaunchArgs) int {
 					inputData[splitKeyVal[0]] = values[0]
 				}
 			} else {
+				// Change Env parsing
 				for k, v := range args.Env {
-					inputData[k] = v
+					if strings.Contains(k, "__") {
+						tmp := map[string]interface{}{}
+						multiLevelEnvProcessor(tmp, k, v)
+						inputData[strings.Split(k, "__")[0]] = tmp[strings.Split(k, "__")[0]]
+					} else if strings.Contains(v, ",") {
+						inputData[k] = strings.Split(v, ",")
+					} else {
+						inputData[k] = v
+					}
+
 				}
 			}
 			return nil
