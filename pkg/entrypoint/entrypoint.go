@@ -192,6 +192,30 @@ func multiLevelEnvProcessor(target map[string]interface{}, key string, value str
 	}
 }
 
+func mergeMaps(m1, m2 map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	for k, v := range m1 {
+		if v2, ok := m2[k]; ok {
+			if v1, ok := v.(map[string]interface{}); ok {
+				if v2, ok := v2.(map[string]interface{}); ok {
+					result[k] = mergeMaps(v1, v2)
+					continue
+				}
+			}
+		}
+		result[k] = v
+	}
+
+	for k, v := range m2 {
+		if _, ok := result[k]; !ok {
+			result[k] = v
+		}
+	}
+
+	return result
+}
+
 // Entrypoint implements the actual functionality of the program so it can be called inline from testing.
 // env is normally passed the environment variable array.
 //
@@ -395,7 +419,7 @@ func Entrypoint(args LaunchArgs) int {
 					if strings.Contains(k, "__") {
 						tmp := map[string]interface{}{}
 						multiLevelEnvProcessor(tmp, k, v)
-						inputData[strings.Split(k, "__")[0]] = tmp[strings.Split(k, "__")[0]]
+						inputData[strings.Split(k, "__")[0]] = mergeMaps(inputData, tmp)[strings.Split(k, "__")[0]]
 					} else if strings.Contains(v, ",") {
 						inputData[k] = strings.Split(v, ",")
 					} else {
